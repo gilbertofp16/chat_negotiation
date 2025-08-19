@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+data/
 develop-eggs/
 dist/
 downloads/
@@ -117,3 +118,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Source data
+data/source/negotiation_book.pdf

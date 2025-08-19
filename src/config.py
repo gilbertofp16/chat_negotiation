@@ -20,3 +20,10 @@ CHROMA_DB_PATH = "data/chroma"
 LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY")
 LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
 LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+
+# --- Active Prompts ---
+# Define which prompt versions to use for different components
+ACTIVE_PROMPT_LANGCHAIN_COACH = os.getenv("ACTIVE_PROMPT_LANGCHAIN_COACH", "langchain/negotiation_coach_v1")
+ACTIVE_PROMPT_CREWAI_COACH = os.getenv(
+    "ACTIVE_PROMPT_CREWAI_COACH", "langchain/negotiation_coach_v1"
+)  # Defaulting to the same for now, can be changed later
