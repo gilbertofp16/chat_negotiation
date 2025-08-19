@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "chat-negotiation"
+version = "0.1.0"
+description = ""
+authors = ["gilbertofp16 <gilbertofp16@gmail.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.10, <=3.13"
+google-generativeai = ">=0.8.5,<0.9.0"
+litellm = "^1.15.0"
+langchain = "^0.1.0"
+crewai = "^0.28.8"
+streamlit = "^1.32.2"
+chromadb = "^0.4.24"
+pypdf = "^4.0.1"
+pytesseract = "^0.3.10"
+langfuse = "^2.15.0"
+python-dotenv = "^1.0.1"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.7.0"
+
+[tool.poetry.scripts]
+ingest = "src.ingestion:main"
+run = "streamlit.cli:main run src/app.py"
+trace-check = "src.observability:check_traces"
+clean = "src.cleanup:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
