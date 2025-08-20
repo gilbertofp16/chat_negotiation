@@ -7,6 +7,8 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langfuse.callback import CallbackHandler
 
+from src.config import REASONING_MODEL_NAME
+
 # Import retriever function
 from src.retriever.get_retriever import get_chroma_retriever
 
@@ -19,15 +21,11 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Load environment variables
 load_dotenv()
 
-# Configuration constants
-# CHROMA_DB_PATH, EMBEDDING_MODEL_NAME, DEFAULT_RETRIEVER_K are now in src/retriever/get_retriever.py
-RAG_MODEL_NAME = os.environ.get("RAG_MODEL_NAME", "models/gemini-1.5-pro-latest")  # Model for RAG pipeline
-
 
 def create_rag_chain(
     retriever,
     system_prompt_template: str,
-    model_name: str = RAG_MODEL_NAME,
+    model_name: str = REASONING_MODEL_NAME,
     llm_params: dict = None,
     langfuse_handler: CallbackHandler = None,
 ):
@@ -74,7 +72,7 @@ def get_answer(
         A dictionary containing the answer text.
     """
     if model_name is None:
-        model_name = os.environ.get("RAG_MODEL_NAME", RAG_MODEL_NAME)
+        model_name = os.environ.get("REASONING_MODEL_NAME", REASONING_MODEL_NAME)
 
     retriever = get_chroma_retriever(k=retriever_k)
 

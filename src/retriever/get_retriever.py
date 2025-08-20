@@ -6,16 +6,10 @@ from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
+from src.config import CHROMA_DB_PATH, DEFAULT_RETRIEVER_K, EMBEDDING_MODEL_NAME
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
-# Load environment variables
-load_dotenv()
-
-# Configuration constants for retriever
-CHROMA_DB_PATH = os.environ.get("CHROMA_DB_PATH", "data/chroma")
-EMBEDDING_MODEL_NAME = os.environ.get("EMBEDDING_MODEL", "models/text-embedding-004")
-DEFAULT_RETRIEVER_K = int(os.environ.get("DEFAULT_RETRIEVER_K", 3))
 
 
 def get_chroma_retriever(k: int = DEFAULT_RETRIEVER_K) -> Chroma.as_retriever:
