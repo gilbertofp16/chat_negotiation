@@ -56,7 +56,10 @@ def create_rag_chain(
     return rag_chain
 
 
-def get_answer(
+import asyncio
+
+
+async def get_answer(
     question: str, retriever_k: int = 3, model_name: str = None
 ):  # Default retriever_k to 3 here, as it's now local to get_chroma_retriever
     """
@@ -74,7 +77,7 @@ def get_answer(
     if model_name is None:
         model_name = os.environ.get("REASONING_MODEL_NAME", REASONING_MODEL_NAME)
 
-    retriever = get_chroma_retriever(k=retriever_k)
+    retriever = await get_chroma_retriever(k=retriever_k)
 
     langfuse_public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
     langfuse_secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
@@ -93,7 +96,7 @@ def get_answer(
     rag_chain = create_rag_chain(retriever, system_prompt_template_content, model_name, llm_configurations, handler)
 
     try:
-        response = rag_chain.invoke(question)
+        response = await rag_chain.ainvoke(question)
         return {"text": response.content}
     except Exception as e:
         logging.error(f"Error during RAG pipeline execution: {e}")
@@ -105,7 +108,7 @@ if __name__ == "__main__":
     print(f"Testing RAG pipeline with question: '{sample_question}'")
 
     try:
-        answer = get_answer(sample_question)
+        answer = asyncio.run(get_answer(sample_question))
         print("\n--- RAG Pipeline Answer ---")
         print(answer.get("text", "No answer found."))
         print("---------------------------")

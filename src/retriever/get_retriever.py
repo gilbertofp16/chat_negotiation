@@ -12,7 +12,7 @@ from src.config import CHROMA_DB_PATH, DEFAULT_RETRIEVER_K, EMBEDDING_MODEL_NAME
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-def get_chroma_retriever(k: int = DEFAULT_RETRIEVER_K) -> Chroma.as_retriever:
+async def get_chroma_retriever(k: int = DEFAULT_RETRIEVER_K) -> Chroma.as_retriever:
     """
     Initializes Chroma vector store and returns a retriever.
 
