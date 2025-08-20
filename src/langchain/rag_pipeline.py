@@ -1,91 +1,54 @@
 import logging
 import os
 
-import yaml
 from dotenv import load_dotenv
-from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnablePassthrough
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langfuse.callback import CallbackHandler
 
-# -----------------------------------------------------------------------------
-# Setup
-# -----------------------------------------------------------------------------
+# Import retriever function
+from src.retriever.get_retriever import get_chroma_retriever
+
+# Import configuration loading functions
+from utils.load_config import load_llm_configurations, load_prompt_template
+
+# Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Load environment variables
 load_dotenv()
 
-# -----------------------------------------------------------------------------
-# Config
-# -----------------------------------------------------------------------------
-CHROMA_DB_PATH = os.environ.get("CHROMA_DB_PATH", "data/chroma")
-EMBEDDING_MODEL_NAME = os.environ.get("EMBEDDING_MODEL", "models/embedding-001")
-RAG_MODEL_NAME = os.environ.get("RAG_MODEL_NAME", "models/gemini-1.5-pro-latest")
-DEFAULT_RETRIEVER_K = int(os.environ.get("DEFAULT_RETRIEVER_K", 3))
-
-PROMPT_PATH = os.environ.get("PROMPT_FILE", "prompts/langchain/negotiation_coach.yaml")
-
-LANGFUSE_PUBLIC_KEY = os.environ.get("LANGFUSE_PUBLIC_KEY")
-LANGFUSE_SECRET_KEY = os.environ.get("LANGFUSE_SECRET_KEY")
+# Configuration constants
+# CHROMA_DB_PATH, EMBEDDING_MODEL_NAME, DEFAULT_RETRIEVER_K are now in src/retriever/get_retriever.py
+RAG_MODEL_NAME = os.environ.get("RAG_MODEL_NAME", "models/gemini-1.5-pro-latest")  # Model for RAG pipeline
 
 
-# -----------------------------------------------------------------------------
-# Prompt Loader
-# -----------------------------------------------------------------------------
-def load_prompt_template(prompt_file_path: str) -> str:
-    """
-    Loads a system prompt template from a YAML file.
-    YAML structure: { template: "..." }
-    """
-    try:
-        with open(prompt_file_path, "r") as f:
-            config = yaml.safe_load(f)
-        template = config.get("template", "").strip()
-        if not template:
-            logging.warning(f"No template found in {prompt_file_path}")
-        return template
-    except FileNotFoundError:
-        logging.error(f"Prompt file not found: {prompt_file_path}")
-        raise
-    except yaml.YAMLError as e:
-        logging.error(f"YAML parse error in {prompt_file_path}: {e}")
-        raise
-
-
-# -----------------------------------------------------------------------------
-# Retriever Utils
-# -----------------------------------------------------------------------------
-def get_chroma_retriever(k: int = DEFAULT_RETRIEVER_K) -> BaseRetriever:
-    """
-    Initializes Chroma vector store and returns a retriever.
-    """
-    try:
-        embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL_NAME)
-        vectorstore = Chroma(persist_directory=CHROMA_DB_PATH, embedding_function=embeddings)
-        return vectorstore.as_retriever(search_kwargs={"k": k})
-    except Exception as e:
-        logging.error(f"Error initializing Chroma retriever: {e}")
-        raise
-
-
-# -----------------------------------------------------------------------------
-# RAG Chain Factory
-# -----------------------------------------------------------------------------
 def create_rag_chain(
-    retriever: BaseRetriever,
-    system_prompt: str,
+    retriever,
+    system_prompt_template: str,
     model_name: str = RAG_MODEL_NAME,
+    llm_params: dict = None,
     langfuse_handler: CallbackHandler = None,
 ):
     """
-    Builds a LangChain RAG chain.
-    """
-    prompt_template = ChatPromptTemplate.from_messages(
-        [("system", system_prompt + "\n\nContext:\n{context}"), ("human", "{question}")]
-    )
+    Creates the RAG chain using LangChain.
 
-    llm = ChatGoogleGenerativeAI(model=model_name, convert_system_message_to_human=True)
+    Args:
+        retriever: The retriever object.
+        system_prompt_template: The system prompt template string.
+        model_name: The name of the LLM model to use.
+        llm_params: Dictionary of LLM parameters (e.g., temperature).
+        langfuse_handler: Optional Langfuse callback handler.
+
+    Returns:
+        A LangChain runnable chain.
+    """
+    prompt_template = ChatPromptTemplate.from_messages([("system", system_prompt_template), ("human", "{question}")])
+
+    llm = ChatGoogleGenerativeAI(
+        model=model_name, convert_system_message_to_human=True, **llm_params if llm_params else {}
+    )
 
     rag_chain = {"context": retriever, "question": RunnablePassthrough()} | prompt_template | llm
 
@@ -95,51 +58,67 @@ def create_rag_chain(
     return rag_chain
 
 
-# -----------------------------------------------------------------------------
-# Pipeline Entrypoint
-# -----------------------------------------------------------------------------
-def get_answer(question: str, retriever_k: int = DEFAULT_RETRIEVER_K, model_name: str = None):
+def get_answer(
+    question: str, retriever_k: int = 3, model_name: str = None
+):  # Default retriever_k to 3 here, as it's now local to get_chroma_retriever
     """
-    Executes the RAG pipeline end-to-end and returns an answer.
+    Orchestrates the RAG pipeline to get an answer.
+
+    Args:
+        question: The user's question.
+        retriever_k: Number of documents to retrieve for context.
+        model_name: The LLM model to use for generating the answer. If None,
+                    it will try to get it from environment variables or use a default.
+
+    Returns:
+        A dictionary containing the answer text.
     """
-    # Model selection
     if model_name is None:
         model_name = os.environ.get("RAG_MODEL_NAME", RAG_MODEL_NAME)
 
-    # Retriever
     retriever = get_chroma_retriever(k=retriever_k)
 
-    # Langfuse handler
+    langfuse_public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
     handler = None
-    if LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY:
+    if langfuse_public_key and langfuse_secret_key:
         handler = CallbackHandler(
-            public_key=LANGFUSE_PUBLIC_KEY,
-            secret_key=LANGFUSE_SECRET_KEY,
+            public_key=langfuse_public_key,
+            secret_key=langfuse_secret_key,
         )
 
-    # Prompt
-    system_prompt = load_prompt_template(PROMPT_PATH)
+    prompt_file = "prompts/langchain/negotiation_coach.yaml"
+    system_prompt_template_content = load_prompt_template(prompt_file)
 
-    # RAG chain
-    rag_chain = create_rag_chain(retriever, system_prompt, model_name, handler)
+    llm_configurations = load_llm_configurations()
 
-    # Invoke
+    rag_chain = create_rag_chain(retriever, system_prompt_template_content, model_name, llm_configurations, handler)
+
     try:
         response = rag_chain.invoke(question)
-        text = getattr(response, "content", response)
-        return {"text": text}
+        return {"text": response.content}
     except Exception as e:
-        logging.error(f"Error during RAG execution: {e}")
+        logging.error(f"Error during RAG pipeline execution: {e}")
         return {"text": "An error occurred while processing your request."}
 
 
-# -----------------------------------------------------------------------------
-# Local Test
-# -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    q = "What is no oriented question? Give an example."
-    logging.info(f"Testing RAG pipeline with: {q}")
-    ans = get_answer(q)
-    print("\n--- RAG Pipeline Answer ---")
-    print(ans.get("text", "No answer"))
-    print("---------------------------")
+    sample_question = "What is BATNA?"
+    print(f"Testing RAG pipeline with question: '{sample_question}'")
+
+    try:
+        answer = get_answer(sample_question)
+        print("\n--- RAG Pipeline Answer ---")
+        print(answer.get("text", "No answer found."))
+        print("---------------------------")
+    except Exception as e:
+        print(f"\nError during test execution: {e}")
+
+# Example of how to use the retriever tool (if needed separately)
+# def get_retriever_tool(retriever):
+#     """Creates a retriever tool for agents."""
+#     return create_retriever_tool(
+#         retriever,
+#         "negotiation_book_retriever",
+#         "Searches and returns passages from the negotiation book."
+#     )
