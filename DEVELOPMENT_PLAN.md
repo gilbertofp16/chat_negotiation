@@ -208,15 +208,15 @@ This requirement implements the same RAG pipeline as Requirement 5, but using th
 
 ---
 
-## Requirement 7. Tiny MCP browse tool (Black Swan sanity checks)
+## Requirement 7. Tiny MCP browse tool (Black Swan sanity checks) (Completed)
 
 **Tasks**
-1. Implement a **minimal MCP server** with a single action: `browse_bsw(topic|query)` that:  
-   - Restricts queries to the Black Swan negotiation domain (short allowlist).  
-   - Returns a normalized summary and top sources with titles and URLs.  
-2. Register MCP in Cline and locally.  
-3. Prompt policy: model may call MCP only to **sanity check** and enrich advice; book content remains the primary source.  
-4. UI: show when browse was used and list 1–2 sources.
+1. Implement a **minimal MCP server** with a single action: `browse_bsw(topic)` that constrains queries to the Black Swan negotiation domain and returns a summary and sources. (Completed)
+2. Create a LangChain `Tool` wrapper around the MCP client to make it available to agents. (Completed)
+3. Integrate the tool into the LangChain agent executor, allowing the LLM to decide when to call it. (Completed)
+4. Update the LangChain system prompt to instruct the agent on the proper, secondary use of the tool. (Completed)
+5. Integrate the same tool into the CrewAI agent, ensuring consistent agentic capabilities. (Completed)
+6. UI: show when browse was used and list 1–2 sources. (Pending UI implementation)
 
 **Dependencies**  
 - Base app operational; Cline available.

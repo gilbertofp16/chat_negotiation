@@ -4,17 +4,13 @@ import os
 
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langfuse.callback import CallbackHandler
 
+from langchain.agents import AgentExecutor, create_tool_calling_agent
 from src.config import REASONING_MODEL_NAME
-
-# Import retriever function
-from src.mcp_servers.mcp_client import mcp_search_sync, web_context_from_results
 from src.retriever.get_retriever import get_chroma_retriever
-
-# Import configuration loading functions
+from src.tools.bsw_tool import get_bsw_tool
 from utils.load_config import load_llm_configurations, load_prompt_template
 
 # Configure logging
@@ -24,48 +20,52 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 load_dotenv()
 
 
-def create_rag_chain(
-    retriever,
+def create_agent_executor(
     system_prompt_template: str,
     model_name: str = REASONING_MODEL_NAME,
     llm_params: dict = None,
     langfuse_handler: CallbackHandler = None,
-    web_context: str = "",  # <-- NEW
 ):
     """
-    Creates the RAG chain using LangChain, now with optional web_context.
+    Creates a LangChain agent that can use the BSW tool and a retriever.
     """
-    # Merge web and doc contexts into the system prompt
-    sys_prompt = (
-        system_prompt_template
-        + "\n\n[Chroma context]\n{context}\n\n[Web context]\n"
-        + (web_context or "[none]")
-        + "\n\nInstruction: Answer the question. Then state whether web context aligns with Chroma "
-        "(agrees / partial / conflicts) and list any discrepancies."
-    )
+    # The agent needs access to both the retriever for book knowledge
+    # and the BSW tool for external web searches.
+    retriever = get_chroma_retriever()
+    bsw_tool = get_bsw_tool()
+    tools = [bsw_tool]
 
-    prompt_template = ChatPromptTemplate.from_messages([("system", sys_prompt), ("human", "{question}")])
+    # The prompt is crucial. It instructs the agent on its role, tells it what tools
+    # it has, and provides placeholders for the question, context, and agent scratchpad.
+    prompt_template = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt_template + "\n\n[Retrieved Context from Book]\n{context}\n\n"),
+            ("human", "{question}"),
+            ("placeholder", "{agent_scratchpad}"),
+        ]
+    )
 
     llm = ChatGoogleGenerativeAI(model=model_name, convert_system_message_to_human=True, **(llm_params or {}))
 
-    rag_chain = {"context": retriever, "question": RunnablePassthrough()} | prompt_template | llm
+    # Create the tool-calling agent. This binds the LLM, tools, and prompt together.
+    agent = create_tool_calling_agent(llm, tools, prompt_template)
+
+    # The AgentExecutor is the runtime for the agent. It takes the agent's decisions
+    # and executes the corresponding tools.
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
     if langfuse_handler:
-        rag_chain = rag_chain.with_config({"callbacks": [langfuse_handler]})
+        agent_executor = agent_executor.with_config({"callbacks": [langfuse_handler]})
 
-    return rag_chain
+    return agent_executor, retriever
 
 
-async def get_answer(question: str, retriever_k: int = 3, model_name: str = None):
+async def get_answer(question: str, model_name: str = None):
+    """
+    Gets an answer from the agentic RAG pipeline.
+    """
     if model_name is None:
         model_name = os.environ.get("REASONING_MODEL_NAME", REASONING_MODEL_NAME)
-
-    retriever = get_chroma_retriever(k=retriever_k)
-
-    # Build focused web query via MCP and format as context
-    web_q = f'{question} site:blackswanltd.com OR "Black Swan Group" negotiation'
-    web_items = mcp_search_sync(web_q, max_results=6)
-    web_ctx = web_context_from_results(web_items)
 
     langfuse_public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
     langfuse_secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
@@ -79,25 +79,31 @@ async def get_answer(question: str, retriever_k: int = 3, model_name: str = None
     system_prompt_template_content = load_prompt_template(prompt_file)
     llm_configurations = load_llm_configurations()
 
-    rag_chain = create_rag_chain(
-        retriever,
+    # Create the agent executor and the retriever
+    agent_executor, retriever = create_agent_executor(
         system_prompt_template_content,
         model_name,
         llm_configurations,
         handler,
-        web_context=web_ctx,
     )
 
+    # 1. Retrieve context from the book first. This is always the primary source.
+    retrieved_docs = retriever.invoke(question)
+    context = "\n---\n".join([doc.page_content for doc in retrieved_docs])
+
     try:
-        response = await rag_chain.ainvoke(question)
-        return {"text": response.content}
+        # 2. Invoke the agent. The agent receives the question and the retrieved book
+        #    context. It can then choose to use the `browse_bsw` tool if it deems it
+        #    necessary to sanity-check or enrich its answer.
+        response = await agent_executor.ainvoke({"question": question, "context": context})
+        return {"text": response.get("output", "No answer found.")}
     except Exception as e:
-        logging.error(f"Error during RAG pipeline execution: {e}")
+        logging.error(f"Error during RAG pipeline execution: {e}", exc_info=True)
         return {"text": "An error occurred while processing your request."}
 
 
 if __name__ == "__main__":
-    sample_question = "What is BATNA?"
+    sample_question = "What are calibrated questions?"
     print(f"Testing RAG pipeline with question: '{sample_question}'")
 
     try:
@@ -107,12 +113,3 @@ if __name__ == "__main__":
         print("---------------------------")
     except Exception as e:
         print(f"\nError during test execution: {e}")
-
-# Example of how to use the retriever tool (if needed separately)
-# def get_retriever_tool(retriever):
-#     """Creates a retriever tool for agents."""
-#     return create_retriever_tool(
-#         retriever,
-#         "negotiation_book_retriever",
-#         "Searches and returns passages from the negotiation book."
-#     )

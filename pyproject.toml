@@ -21,6 +21,8 @@ langchain-google-genai = "^2.1.9"
 crewai = "^0.165.1"
 langchain-community = "^0.3.27"
 langchain-chroma = "^0.2.5"
+mcp = {extras = ["cli"], version = "^1.13.0"}
+tavily-python = "^0.7.11"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.7.0"

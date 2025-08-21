@@ -1,21 +1,19 @@
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 from dotenv import load_dotenv
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langfuse.callback import CallbackHandler
 
 from crewai import LLM, Agent, Crew, Task
-from src.mcp_servers.mcp_client import mcp_search_sync, web_context_from_results
-from src.retriever.get_retriever import (
-    get_chroma_retriever,  # CrewAI’s LLM wrapper (LiteLLM underneath)
-)
+from src.config import REASONING_MODEL
+
+# Import the underlying client functions, not the LangChain tool wrapper
+from src.mcp_servers.mcp_client import bsw_context_from_results, mcp_browse_sync
+from src.retriever.get_retriever import get_chroma_retriever
 
 # --------------------------------------------------------------------------------------
 # Config / setup
@@ -25,24 +23,37 @@ load_dotenv()
 
 
 # --------------------------------------------------------------------------------------
-# LLM & Embeddings
+# CrewAI Tool Definition
+# --------------------------------------------------------------------------------------
+@tool("Browse BSW Tool")
+def browse_bsw(topic: str) -> str:
+    """
+    Searches the web for information on Black Swan negotiation techniques to sanity-check or enrich an answer.
+    Input should be a specific negotiation topic (e.g., 'mirroring', 'calibrated questions').
+    """
+    return bsw_context_from_results(mcp_browse_sync(topic))
+
+
+# --------------------------------------------------------------------------------------
+# LLM
 # --------------------------------------------------------------------------------------
 def make_llm() -> LLM:
     """CrewAI LLM wrapper using Gemini via LiteLLM."""
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise RuntimeError("Set GEMINI_API_KEY or GOOGLE_API_KEY in your environment.")
-    return LLM(model="gemini/gemini-1.5-pro-latest", api_key=api_key, temperature=0.2)
 
-
-def make_embeddings() -> GoogleGenerativeAIEmbeddings:
-    return GoogleGenerativeAIEmbeddings(model="text-embedding-004")
+    return LLM(
+        model=f"gemini/{REASONING_MODEL}",
+        api_key=api_key,
+        temperature=0.2,
+    )
 
 
 # --------------------------------------------------------------------------------------
 # Agents
 # --------------------------------------------------------------------------------------
-def create_agent(role: str, goal: str, backstory: str, llm: LLM, verbose: bool = True) -> Agent:
+def create_agent(role: str, goal: str, backstory: str, llm: LLM, tools: list = None, verbose: bool = True) -> Agent:
     return Agent(
         role=role,
         goal=goal,
@@ -50,6 +61,7 @@ def create_agent(role: str, goal: str, backstory: str, llm: LLM, verbose: bool =
         verbose=verbose,
         allow_delegation=False,
         llm=llm,
+        tools=tools or [],
     )
 
 
@@ -75,52 +87,67 @@ def _truncate(s: str, max_chars: int = 12000) -> str:
     return s
 
 
-async def crew_answer_with_pdf(question: str) -> Dict[str, Any]:
+# --------------------------------------------------------------------------------------
+# Crew run
+# --------------------------------------------------------------------------------------
+async def crew_answer(question: str) -> Dict[str, Any]:
+    """
+    Answers a question using a CrewAI crew with an agent that can use the BSW tool.
+    """
     llm = make_llm()
+
     coach = create_agent(
         role="Master Negotiation Coach",
-        goal="Answer questions only with supporting evidence from provided context.",
-        backstory="You are a negotiation coach who cross-checks retrieved book context with reputable web sources.",
+        goal=(
+            "Your primary goal is to answer questions based on the provided book context. "
+            "You can use the `Browse BSW Tool` to sanity-check or enrich your answers about specific "
+            "Black Swan negotiation techniques, but the book is your main source of truth."
+        ),
+        backstory="You are a world-class negotiation coach who trusts the provided book but verifies with targeted web searches.",
         llm=llm,
+        tools=[browse_bsw],  # Pass the CrewAI-native tool
     )
 
-    # Load your persisted Chroma (not in-memory here)
+    # Retrieve the book context first.
     retriever = get_chroma_retriever(k=8)
-
-    # 1) Chroma context
     doc_context = retrieve_sync(question, retriever)
     if not doc_context:
-        doc_context = "[No results found from Chroma.]"
+        doc_context = "[No results found from the book.]"
     doc_context = _truncate(doc_context)
 
-    # 2) MCP web search context focused on Black Swan Group
-    query = f'{question} site:blackswanltd.com OR "Black Swan Group" negotiation'
-    web_items = mcp_search_sync(query, max_results=6)
-    web_context = web_context_from_results(web_items) or "[No web results.]"
-    web_context = _truncate(web_context)
-
+    # The task description now includes the retrieved context and instructs the agent on how to behave.
     task = Task(
         description=(
-            "Using ONLY the information below, answer the user's question and explicitly state "
-            "whether the web context aligns with the Chroma context. If there are conflicts, list them.\n\n"
+            "Answer the user's question based on the [Retrieved Context from Book] provided below. "
+            "If you need to verify a specific Black Swan technique, use your `Browse BSW Tool`. "
+            "Always cite page numbers from the book context where possible.\n\n"
             f"Question: {question}\n\n"
-            f"Chroma context:\n{doc_context}\n\n"
-            f"Web context:\n{web_context}\n"
+            f"[Retrieved Context from Book]:\n{doc_context}\n"
         ),
         expected_output=(
-            "A concise answer with (1) citations to page numbers from Chroma text when present, "
-            "(2) a short alignment report: agrees / partially agrees / conflicts, with bullet points."
+            "A clear, practical answer grounded in the book context. If the web tool was used, "
+            "mention it and cite the sources."
         ),
         agent=coach,
+    )
+
+    # Add the Langfuse callback handler for observability
+    langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+    handler = (
+        CallbackHandler(public_key=langfuse_public_key, secret_key=langfuse_secret_key)
+        if (langfuse_public_key and langfuse_secret_key)
+        else None
     )
 
     crew = Crew(agents=[coach], tasks=[task], verbose=True)
 
     try:
-        result = crew.kickoff()
+        # Pass the handler to the kickoff method
+        result = crew.kickoff(callbacks=[handler] if handler else None)
         return {"text": str(result)}
     except Exception as e:
-        logging.error(f"Crew execution error: {e}")
+        logging.error(f"Crew execution error: {e}", exc_info=True)
         return {"text": f"Error: {e}"}
 
 
@@ -128,16 +155,15 @@ async def crew_answer_with_pdf(question: str) -> Dict[str, Any]:
 # CLI
 # --------------------------------------------------------------------------------------
 if __name__ == "__main__":
-    print("--- CrewAI PDF RAG (ephemeral) ---")
+    print("--- CrewAI PDF RAG (Agentic) ---")
     question = "What is BATNA?"
-    pdf = "/home/gilberto/code/chat_negotiation/data/source/negotiation_book.pdf"  # <- change to your PDF
 
     try:
-        out = asyncio.run(crew_answer_with_pdf(question, pdf))
+        out = asyncio.run(crew_answer(question))
         print("\n--- Answer ---")
         print(out.get("text", "No answer"))
         print("----------------")
     except Exception as e:
-        logging.error(f"Execution error: {e}")
+        logging.error(f"Execution error: {e}", exc_info=True)
 
     print("\n--- Done ---")
