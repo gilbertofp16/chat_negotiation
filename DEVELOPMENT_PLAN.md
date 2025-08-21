@@ -179,11 +179,13 @@ None; this unlocks everything else.
 
 ## Requirement 6. Agentic variant with CrewAI (for learning, not comparison)
 
+This requirement implements the same RAG pipeline as Requirement 5, but using the CrewAI framework to explore an agent-based approach. The goal is to produce the same outcome—a coached answer based on the book—but orchestrated by a crew of agents instead of a LangChain chain.
+
 **Tasks**
-1. Define a **Retriever agent** that queries Chroma and returns concise excerpts annotated with page numbers.  
-2. Define a **Coach agent** that synthesizes an answer strictly from retrieved excerpts and cites pages.  
-3. Provide a crew composition helper that mirrors model selection options used in LangChain.  
-4. Enable tracing so CrewAI runs appear in Langfuse.
+1.  Use an agent to perform the retrieval step from Chroma, returning concise excerpts annotated with page numbers.
+2.  Define a **Coach agent** that synthesizes an answer strictly from retrieved excerpts and cites pages.
+3.  Provide a crew composition helper that mirrors model selection options used in LangChain.
+4.  Enable tracing so CrewAI runs appear in Langfuse.
 
 **Dependencies**  
 - Requirements 3 and 5 ready; model access available.
