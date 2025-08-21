@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Any, Dict
 
 import yaml
 
@@ -61,4 +62,26 @@ def load_llm_configurations(config_path: str = DEFAULT_LLM_CONFIG_PATH) -> dict:
         return {}
     except Exception as e:
         logging.error(f"An unexpected error occurred while loading LLM configurations: {e}")
+        return {}
+
+
+def load_agent_config(config_path: str = "config/crewai_agent_config.yaml") -> Dict[str, Any]:
+    """Loads agent configuration from a YAML file."""
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        if config is None:
+            logging.error(f"Configuration file '{config_path}' is empty.")
+            return {}
+
+        # Return both retriever agent config and default properties
+        return {
+            "retriever_agent": config.get("retriever_agent", {}),
+            "default_agent_properties": config.get("default_agent_properties", {}),
+        }
+    except FileNotFoundError:
+        logging.error(f"Configuration file not found at {config_path}")
+        return {}
+    except Exception as e:
+        logging.error(f"Error loading configuration from {config_path}: {e}")
         return {}

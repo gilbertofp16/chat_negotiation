@@ -1,0 +1,2 @@
+description: Synthesize an answer to the question: '{question}' using the provided document excerpts. Ensure the answer is grounded in the excerpts and cites page numbers accurately. If no excerpts are relevant, state that.
+expected_output: A comprehensive answer to the question, with citations to the relevant document pages.
