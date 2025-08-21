@@ -12,6 +12,7 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from crewai import LLM, Agent, Crew, Task
+from src.mcp_servers.mcp_client import mcp_search_sync, web_context_from_results
 from src.retriever.get_retriever import (
     get_chroma_retriever,  # CrewAI’s LLM wrapper (LiteLLM underneath)
 )
@@ -74,36 +75,42 @@ def _truncate(s: str, max_chars: int = 12000) -> str:
     return s
 
 
-# --------------------------------------------------------------------------------------
-# Crew run (no tools)
-# --------------------------------------------------------------------------------------
-async def crew_answer_with_pdf(question: str, pdf_path: str) -> Dict[str, Any]:
-    # Create LLM + agent
+async def crew_answer_with_pdf(question: str) -> Dict[str, Any]:
     llm = make_llm()
     coach = create_agent(
         role="Master Negotiation Coach",
         goal="Answer questions only with supporting evidence from provided context.",
-        backstory="You are a negotiation coach who only cites from retrieved context and includes page numbers.",
+        backstory="You are a negotiation coach who cross-checks retrieved book context with reputable web sources.",
         llm=llm,
     )
 
-    # Build an in-memory retriever from the PDF
+    # Load your persisted Chroma (not in-memory here)
     retriever = get_chroma_retriever(k=8)
 
-    # Retrieve top chunks and pass them into the Task
-    retrieved_context = retrieve_sync(question, retriever)
-    if not retrieved_context:
-        retrieved_context = "[No results found. Consider re-chunking, increasing k, or verifying the PDF content.]"
-    retrieved_context = _truncate(retrieved_context)
+    # 1) Chroma context
+    doc_context = retrieve_sync(question, retriever)
+    if not doc_context:
+        doc_context = "[No results found from Chroma.]"
+    doc_context = _truncate(doc_context)
+
+    # 2) MCP web search context focused on Black Swan Group
+    query = f'{question} site:blackswanltd.com OR "Black Swan Group" negotiation'
+    web_items = mcp_search_sync(query, max_results=6)
+    web_context = web_context_from_results(web_items) or "[No web results.]"
+    web_context = _truncate(web_context)
 
     task = Task(
         description=(
-            "Answer the user's question using only the retrieved context provided below. "
-            "Cite page numbers present in the context. If no evidence is found, say so.\n\n"
+            "Using ONLY the information below, answer the user's question and explicitly state "
+            "whether the web context aligns with the Chroma context. If there are conflicts, list them.\n\n"
             f"Question: {question}\n\n"
-            f"Retrieved context:\n{retrieved_context}\n"
+            f"Chroma context:\n{doc_context}\n\n"
+            f"Web context:\n{web_context}\n"
         ),
-        expected_output="A clear, well structured answer that cites page numbers from the context.",
+        expected_output=(
+            "A concise answer with (1) citations to page numbers from Chroma text when present, "
+            "(2) a short alignment report: agrees / partially agrees / conflicts, with bullet points."
+        ),
         agent=coach,
     )
 

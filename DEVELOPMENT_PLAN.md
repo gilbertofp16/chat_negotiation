@@ -179,32 +179,32 @@ None; this unlocks everything else.
 
 ## Requirement 6. Agentic variant with CrewAI (for learning, not comparison)
 
-This requirement implements the same RAG pipeline as Requirement 5, but using the CrewAI framework to explore an agent-based approach. The goal is to produce the same outcome—a coached answer based on the book—but orchestrated by a crew of agents instead of a LangChain chain.
+This requirement implements the same RAG pipeline as Requirement 5, but using the CrewAI framework to explore an agent-based approach. Both the LangChain and CrewAI paths will now use the same centrally managed, persisted Chroma vector store, ensuring consistency and efficiency.
 
 **Tasks**
-1.  Use an agent to perform the retrieval step from Chroma, returning concise excerpts annotated with page numbers.
-2.  Define a **Coach agent** that synthesizes an answer strictly from retrieved excerpts and cites pages.
+1.  Utilize the shared retriever (from Requirement 3) to fetch context from the persisted Chroma store.
+2.  Define a **Coach agent** that synthesizes an answer strictly from the retrieved excerpts and cites pages.
 3.  Provide a crew composition helper that mirrors model selection options used in LangChain.
 4.  Enable tracing so CrewAI runs appear in Langfuse.
 
 **Dependencies**  
-- Requirements 3 and 5 ready; model access available.
+- Requirement 3 (Vector store management) and Requirement 5 (LangChain RAG) are complete.
 
 **Approaches**  
-- Use LiteLLM for model routing to Gemini (or CrewAI’s native Gemini support if stable in your version).  
-- Keep tool surface minimal: only the retriever (MCP browse remains separate).
+- The CrewAI path now directly uses the `get_retriever` function, ensuring it accesses the same persisted ChromaDB instance as the LangChain path. The previous in-memory, ephemeral approach has been removed.
+- Use CrewAI's native LLM support (which leverages LiteLLM) for model routing to Gemini.
 
 **Trade-offs**  
-- LiteLLM simplifies swapping models but adds a layer.  
-- Native client reduces layers but may be less flexible.
+- This unified approach removes the previous trade-off of high latency in the CrewAI path, as the vector store is no longer rebuilt on each run.
+- LiteLLM simplifies swapping models but adds a layer. Native client reduces layers but may be less flexible.
 
 **Testing strategy**  
-- Reuse the same golden Q&A set as Requirement 5.  
-- Sanity check latency and output formatting.  
-- Trace visibility in Langfuse.
+- Reuse the same golden Q&A set as Requirement 5.
+- Verify that both LangChain and CrewAI paths produce consistent results from the same underlying data.
+- Confirm trace visibility in Langfuse.
 
 **Integration**  
-- Export `crew_answer()` with the same signature as `answer()` so UI can toggle orchestration.
+- Export `crew_answer()` with the same signature as `answer()` so the UI can seamlessly toggle between orchestration methods.
 
 ---
 
