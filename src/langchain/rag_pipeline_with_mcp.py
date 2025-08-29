@@ -8,12 +8,13 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langfuse.callback import CallbackHandler
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
-from src.config import ACTIVE_PROMPT_LANGCHAIN_COACH, REASONING_MODEL_NAME
+from src.config import ACTIVE_PROMPT_LANGCHAIN_COACH_WITH_MCP, REASONING_MODEL_NAME
 from src.retriever.get_retriever import get_chroma_retriever
 from src.tools.bsw_tool import get_bsw_tool
 from utils.load_config import load_llm_configurations, load_prompt_template
 
 # Configure logging
+logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -22,7 +23,7 @@ logging.basicConfig(
 load_dotenv()
 
 
-def create_agent_executor(
+async def create_agent_executor(
     system_prompt_template: str,
     model_name: str = REASONING_MODEL_NAME,
     llm_params: dict = None,
@@ -34,7 +35,7 @@ def create_agent_executor(
     # The agent needs access to both the retriever for book knowledge
     # and the BSW tool for external web searches.
     retriever = get_chroma_retriever()
-    bsw_tool = get_bsw_tool()
+    bsw_tool = await get_bsw_tool()
     tools = [bsw_tool]
 
     # The prompt is crucial. It instructs the agent on its role, tells it what tools
@@ -84,12 +85,12 @@ async def get_answer(question: str, model_name: str = None):
     )
 
     system_prompt_template_content = load_prompt_template(
-        f"prompts/{ACTIVE_PROMPT_LANGCHAIN_COACH}.yaml"
+        f"prompts/{ACTIVE_PROMPT_LANGCHAIN_COACH_WITH_MCP}.yaml"
     )
     llm_configurations = load_llm_configurations()
 
     # Create the agent executor and the retriever
-    agent_executor, retriever = create_agent_executor(
+    agent_executor, retriever = await create_agent_executor(
         system_prompt_template_content,
         model_name,
         llm_configurations,
@@ -114,7 +115,7 @@ async def get_answer(question: str, model_name: str = None):
 
 
 if __name__ == "__main__":
-    sample_question = "What are calibrated questions?"
+    sample_question = "I need no oriented question to ask to do a interview on Friday? but the person is HR from Australia needs to be Australian English maybe to british English?"
     print(f"Testing RAG pipeline with question: '{sample_question}'")
 
     try:

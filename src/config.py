@@ -28,6 +28,11 @@ LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 ACTIVE_PROMPT_LANGCHAIN_COACH = os.getenv(
     "ACTIVE_PROMPT_LANGCHAIN_COACH", "langchain/negotiation_coach"
 )
+ACTIVE_PROMPT_LANGCHAIN_COACH_WITH_MCP = os.getenv(
+    "ACTIVE_PROMPT_LANGCHAIN_COACH", "langchain/negotiation_coach_with_mcp"
+)
+
+
 ACTIVE_PROMPT_CREWAI_COACH = os.getenv(
     "ACTIVE_PROMPT_CREWAI_COACH", "langchain/negotiation_coach"
 )  # Defaulting to the same for now, can be changed later

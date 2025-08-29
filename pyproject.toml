@@ -23,6 +23,9 @@ langchain-community = "^0.3.27"
 langchain-chroma = "^0.2.5"
 mcp = {extras = ["cli"], version = "^1.13.0"}
 tavily-python = "^0.7.11"
+fastapi = "^0.116.1"
+uvicorn = "^0.35.0"
+langchain-mcp-adapters = "^0.1.9"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.7.0"
