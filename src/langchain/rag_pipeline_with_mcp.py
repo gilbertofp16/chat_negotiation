@@ -8,13 +8,15 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langfuse.callback import CallbackHandler
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
-from src.config import REASONING_MODEL_NAME
+from src.config import ACTIVE_PROMPT_LANGCHAIN_COACH, REASONING_MODEL_NAME
 from src.retriever.get_retriever import get_chroma_retriever
 from src.tools.bsw_tool import get_bsw_tool
 from utils.load_config import load_llm_configurations, load_prompt_template
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # Load environment variables
 load_dotenv()
@@ -39,13 +41,19 @@ def create_agent_executor(
     # it has, and provides placeholders for the question, context, and agent scratchpad.
     prompt_template = ChatPromptTemplate.from_messages(
         [
-            ("system", system_prompt_template + "\n\n[Retrieved Context from Book]\n{context}\n\n"),
+            (
+                "system",
+                system_prompt_template
+                + "\n\n[Retrieved Context from Book]\n{context}\n\n",
+            ),
             ("human", "{question}"),
             ("placeholder", "{agent_scratchpad}"),
         ]
     )
 
-    llm = ChatGoogleGenerativeAI(model=model_name, convert_system_message_to_human=True, **(llm_params or {}))
+    llm = ChatGoogleGenerativeAI(
+        model=model_name, convert_system_message_to_human=True, **(llm_params or {})
+    )
 
     # Create the tool-calling agent. This binds the LLM, tools, and prompt together.
     agent = create_tool_calling_agent(llm, tools, prompt_template)
@@ -75,8 +83,9 @@ async def get_answer(question: str, model_name: str = None):
         else None
     )
 
-    prompt_file = "prompts/langchain/negotiation_coach.yaml"
-    system_prompt_template_content = load_prompt_template(prompt_file)
+    system_prompt_template_content = load_prompt_template(
+        f"prompts/{ACTIVE_PROMPT_LANGCHAIN_COACH}.yaml"
+    )
     llm_configurations = load_llm_configurations()
 
     # Create the agent executor and the retriever
@@ -95,7 +104,9 @@ async def get_answer(question: str, model_name: str = None):
         # 2. Invoke the agent. The agent receives the question and the retrieved book
         #    context. It can then choose to use the `browse_bsw` tool if it deems it
         #    necessary to sanity-check or enrich its answer.
-        response = await agent_executor.ainvoke({"question": question, "context": context})
+        response = await agent_executor.ainvoke(
+            {"question": question, "context": context}
+        )
         return {"text": response.get("output", "No answer found.")}
     except Exception as e:
         logging.error(f"Error during RAG pipeline execution: {e}", exc_info=True)

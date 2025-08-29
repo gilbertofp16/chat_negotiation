@@ -1,15 +1,12 @@
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 from dotenv import load_dotenv
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from crewai import LLM, Agent, Crew, Task
 from src.retriever.get_retriever import (
@@ -19,7 +16,9 @@ from src.retriever.get_retriever import (
 # --------------------------------------------------------------------------------------
 # Config / setup
 # --------------------------------------------------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 load_dotenv()
 
 
@@ -41,7 +40,9 @@ def make_embeddings() -> GoogleGenerativeAIEmbeddings:
 # --------------------------------------------------------------------------------------
 # Agents
 # --------------------------------------------------------------------------------------
-def create_agent(role: str, goal: str, backstory: str, llm: LLM, verbose: bool = True) -> Agent:
+def create_agent(
+    role: str, goal: str, backstory: str, llm: LLM, verbose: bool = True
+) -> Agent:
     return Agent(
         role=role,
         goal=goal,
@@ -59,7 +60,9 @@ def format_docs(docs: List[Document]) -> str:
     parts = []
     for i, doc in enumerate(docs):
         page_number = doc.metadata.get("page", "N/A")
-        parts.append(f"--- Document {i+1} (Page: {page_number}) ---\n{doc.page_content}\n")
+        parts.append(
+            f"--- Document {i+1} (Page: {page_number}) ---\n{doc.page_content}\n"
+        )
     return "".join(parts).strip()
 
 
@@ -122,7 +125,7 @@ async def crew_answer_with_pdf(question: str, pdf_path: str) -> Dict[str, Any]:
 # --------------------------------------------------------------------------------------
 if __name__ == "__main__":
     print("--- CrewAI PDF RAG (ephemeral) ---")
-    question = "What is BATNA?"
+    question = "I need no oriented question to ask to do a interview on Friday? but the person is HR from Australia needs to be Australian English maybe to british English?"
     pdf = "/home/gilberto/code/chat_negotiation/data/source/negotiation_book.pdf"  # <- change to your PDF
 
     try:

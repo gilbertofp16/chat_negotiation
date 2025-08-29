@@ -20,17 +20,24 @@ def get_chroma_retriever(
     collection_name: Optional[str] = None,
     persist_directory: Optional[str] = None,
 ) -> BaseRetriever:
-    persist_directory = persist_directory or CHROMA_DB_PATH
-    collection_name = collection_name or os.getenv("CHROMA_COLLECTION_NAME", "pdf_ephemeral")
+    final_persist_directory = persist_directory or CHROMA_DB_PATH
+    final_collection_name = collection_name or os.getenv(
+        "CHROMA_COLLECTION_NAME", "pdf_ephemeral"
+    )
 
-    path = Path(persist_directory)
+    if not final_collection_name:
+        raise ValueError("Chroma collection name must be set.")
+
+    path = Path(final_persist_directory)
     if not path.exists():
-        raise FileNotFoundError(f"Chroma persistence path not found: {persist_directory}")
+        raise FileNotFoundError(
+            f"Chroma persistence path not found: {persist_directory}"
+        )
 
     embeddings = make_embeddings()  # used for query-time embedding
     vectorstore = Chroma(
         persist_directory=str(path),
-        collection_name=collection_name,
+        collection_name=final_collection_name,
         embedding_function=embeddings,
     )
 
@@ -41,9 +48,13 @@ def get_chroma_retriever(
         count = None
     if count == 0:
         raise RuntimeError(
-            f"Chroma collection '{collection_name}' at '{path}' is empty. "
+            f"Chroma collection '{final_collection_name}' at '{path}' is empty. "
             f"Reindex the PDF using the same collection name and embedding model '{EMBEDDING_MODEL_NAME}'."
         )
-    logging.info(f"Loaded Chroma collection '{collection_name}' at '{path}', vectors={count}")
+    logging.info(
+        f"Loaded Chroma collection '{final_collection_name}' at '{path}', vectors={count}"
+    )
 
-    return vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": int(k)})
+    return vectorstore.as_retriever(
+        search_type="similarity", search_kwargs={"k": int(k)}
+    )

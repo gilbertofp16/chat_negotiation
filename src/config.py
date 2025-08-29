@@ -25,9 +25,11 @@ LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 
 # --- Active Prompts ---
 # Define which prompt versions to use for different components
-ACTIVE_PROMPT_LANGCHAIN_COACH = os.getenv("ACTIVE_PROMPT_LANGCHAIN_COACH", "langchain/negotiation_coach_v1")
+ACTIVE_PROMPT_LANGCHAIN_COACH = os.getenv(
+    "ACTIVE_PROMPT_LANGCHAIN_COACH", "langchain/negotiation_coach"
+)
 ACTIVE_PROMPT_CREWAI_COACH = os.getenv(
-    "ACTIVE_PROMPT_CREWAI_COACH", "langchain/negotiation_coach_v1"
+    "ACTIVE_PROMPT_CREWAI_COACH", "langchain/negotiation_coach"
 )  # Defaulting to the same for now, can be changed later
 
 DEFAULT_RETRIEVER_K = 3

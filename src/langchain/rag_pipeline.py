@@ -8,7 +8,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langfuse.callback import CallbackHandler
 
-from src.config import REASONING_MODEL_NAME
+from src.config import ACTIVE_PROMPT_LANGCHAIN_COACH, REASONING_MODEL_NAME
 
 # Import retriever function
 from src.retriever.get_retriever import get_chroma_retriever
@@ -17,7 +17,9 @@ from src.retriever.get_retriever import get_chroma_retriever
 from utils.load_config import load_llm_configurations, load_prompt_template
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # Load environment variables
 load_dotenv()
@@ -43,13 +45,21 @@ def create_rag_chain(
     Returns:
         A LangChain runnable chain.
     """
-    prompt_template = ChatPromptTemplate.from_messages([("system", system_prompt_template), ("human", "{question}")])
-
-    llm = ChatGoogleGenerativeAI(
-        model=model_name, convert_system_message_to_human=True, **llm_params if llm_params else {}
+    prompt_template = ChatPromptTemplate.from_messages(
+        [("system", system_prompt_template), ("human", "{question}")]
     )
 
-    rag_chain = {"context": retriever, "question": RunnablePassthrough()} | prompt_template | llm
+    llm = ChatGoogleGenerativeAI(
+        model=model_name,
+        convert_system_message_to_human=True,
+        **llm_params if llm_params else {},
+    )
+
+    rag_chain = (
+        {"context": retriever, "question": RunnablePassthrough()}
+        | prompt_template
+        | llm
+    )
 
     if langfuse_handler:
         rag_chain = rag_chain.with_config({"callbacks": [langfuse_handler]})
@@ -86,12 +96,19 @@ async def get_answer(
             secret_key=langfuse_secret_key,
         )
 
-    prompt_file = "prompts/langchain/negotiation_coach.yaml"
-    system_prompt_template_content = load_prompt_template(prompt_file)
+    system_prompt_template_content = load_prompt_template(
+        f"prompts/{ACTIVE_PROMPT_LANGCHAIN_COACH}.yaml"
+    )
 
     llm_configurations = load_llm_configurations()
 
-    rag_chain = create_rag_chain(retriever, system_prompt_template_content, model_name, llm_configurations, handler)
+    rag_chain = create_rag_chain(
+        retriever,
+        system_prompt_template_content,
+        model_name,
+        llm_configurations,
+        handler,
+    )
 
     try:
         response = await rag_chain.ainvoke(question)
@@ -102,7 +119,7 @@ async def get_answer(
 
 
 if __name__ == "__main__":
-    sample_question = "What is BATNA?"
+    sample_question = "I need no oriented question to ask to do a interview on Friday? but the person is HR from Australia needs to be Australian English maybe to british English?"
     print(f"Testing RAG pipeline with question: '{sample_question}'")
 
     try:
