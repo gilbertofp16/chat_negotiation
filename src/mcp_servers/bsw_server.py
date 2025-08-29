@@ -34,51 +34,50 @@ def _tavily() -> TavilyClient:
 
 
 @mcp.tool()
-async def browse_bsw(topic: str, max_results: int = 3):
+async def browse_bsw(question: str, max_results: int = 5):
     """
-    Searches the web for a topic related to Black Swan negotiation techniques.
-    Returns a summary and a list of sources.
+    Performs an advanced web search on a negotiation-related topic.
+
+    Returns a list of search result objects, each containing a title, url,
+    and a detailed content snippet. This provides rich, structured information
+    for answering user questions.
     """
     logger.warning(
-        f"⚡️ browse_bsw CALLED with topic={topic!r}, max_results={max_results}"
+        f"⚡️ browse_bsw CALLED with question={question!r}, max_results={max_results}"
     )
 
-    query = f"Black Swan negotiation technique: {topic}"
+    query = f"negotiation techniques: {question}"
 
     try:
         loop = asyncio.get_running_loop()
         res = await loop.run_in_executor(
-            None, lambda: _tavily().search(query=query, max_results=max_results)
+            None,
+            lambda: _tavily().search(
+                query=query, max_results=max_results, search_depth="advanced"
+            ),
         )
-        results = res.get("results", [])
-        if not results:
-            return {
-                "summary": f"No results found for the topic '{topic}'.",
-                "sources": [],
-            }
+        api_results = res.get("results", [])
+        if not api_results:
+            return {"results": []}
 
-        summary_parts = []
-        sources = []
-        for r in results:
-            snippet = (r.get("content", "") or "")[:400]
-            summary_parts.append(snippet)
-            sources.append(
+        # Create a structured list of results for the agent
+        structured_results = []
+        for r in api_results:
+            structured_results.append(
                 {
-                    "title": r.get("title", "No Title"),
-                    "url": r.get("url", ""),
+                    "title": r.get("title"),
+                    "url": r.get("url"),
+                    "content": (r.get("content", "") or "")[:4000],
                 }
             )
 
-        return {
-            "summary": "\n\n".join(summary_parts).strip(),
-            "sources": sources,
-        }
+        return {"results": structured_results}
 
     except Exception as e:
-        logger.exception(f"Error during search for topic {topic!r}: {e}")
+        logger.exception(f"Error during search for question {question!r}: {e}")
         return {
-            "summary": f"An internal error occurred during the web search: {e}",
-            "sources": [],
+            "results": [],
+            "error": f"An internal error occurred during the web search: {e}",
         }
 
 
