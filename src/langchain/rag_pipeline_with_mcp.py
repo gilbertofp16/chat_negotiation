@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langfuse import Langfuse
 from langfuse.callback import CallbackHandler
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
@@ -78,11 +79,26 @@ async def get_answer(question: str, model_name: str = None):
 
     langfuse_public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
     langfuse_secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
-    handler = (
-        CallbackHandler(public_key=langfuse_public_key, secret_key=langfuse_secret_key)
-        if (langfuse_public_key and langfuse_secret_key)
-        else None
-    )
+    langfuse = None
+    handler = None
+    trace = None
+
+    if langfuse_public_key and langfuse_secret_key:
+        langfuse = Langfuse(
+            public_key=langfuse_public_key, secret_key=langfuse_secret_key
+        )
+        trace = langfuse.trace(
+            name="RAG-Pipeline",
+            input={"question": question},
+            metadata={"model_name": model_name},
+        )
+        handler = CallbackHandler(
+            public_key=langfuse_public_key,
+            secret_key=langfuse_secret_key,
+            # This will link the agent's trace to the same session
+            trace_name="Agent-Execution",
+            session_id=trace.id,
+        )
 
     system_prompt_template_content = load_prompt_template(
         f"prompts/{ACTIVE_PROMPT_LANGCHAIN_COACH_WITH_MCP}.yaml"
@@ -98,8 +114,27 @@ async def get_answer(question: str, model_name: str = None):
     )
 
     # 1. Retrieve context from the book first. This is always the primary source.
+    if trace:
+        retrieval_span = trace.span(
+            name="Retriever-Chroma",
+            input={"question": question},
+            metadata={"retriever_type": "chroma"},
+        )
+
     retrieved_docs = retriever.invoke(question)
     context = "\n---\n".join([doc.page_content for doc in retrieved_docs])
+
+    if trace and "retrieval_span" in locals():
+        documents_for_logging = [
+            {"page_content": doc.page_content, "metadata": doc.metadata}
+            for doc in retrieved_docs
+        ]
+        retrieval_span.end(
+            output={
+                "documents": documents_for_logging,
+                "context_string": context,
+            }
+        )
 
     try:
         # 2. Invoke the agent. The agent receives the question and the retrieved book
@@ -108,10 +143,16 @@ async def get_answer(question: str, model_name: str = None):
         response = await agent_executor.ainvoke(
             {"question": question, "context": context}
         )
-        return {"text": response.get("output", "No answer found.")}
+        output = {"text": response.get("output", "No answer found.")}
+        if trace:
+            trace.update(output=output)
+        return output
     except Exception as e:
         logging.error(f"Error during RAG pipeline execution: {e}", exc_info=True)
-        return {"text": "An error occurred while processing your request."}
+        output = {"text": "An error occurred while processing your request."}
+        if trace:
+            trace.update(output=output, level="ERROR", status_message=str(e))
+        return output
 
 
 if __name__ == "__main__":
