@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 
@@ -132,16 +131,3 @@ async def get_answer(question: str, model_name: str = None):
             trace.update(output=output, level="ERROR", status_message=str(e))
 
         return output
-
-
-if __name__ == "__main__":
-    sample_question = "I need no oriented question to ask to do a interview on Friday? but the person is HR from Australia needs to be Australian English maybe to british English?"
-    print(f"Testing RAG pipeline with question: '{sample_question}'")
-
-    try:
-        answer = asyncio.run(get_answer(sample_question))
-        print("\n--- RAG Pipeline Answer ---")
-        print(answer.get("text", "No answer found."))
-        print("---------------------------")
-    except Exception as e:
-        print(f"\nError during test execution: {e}")

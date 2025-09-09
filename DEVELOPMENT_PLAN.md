@@ -99,14 +99,14 @@ Goal: build a local proof of concept negotiation coach chat application that use
 
 ---
 
-## Requirement 7. Streamlit chat UI with memory and caching
+## Requirement 7. Streamlit chat UI with memory and caching (Completed)
 
 **Tasks**
-1. Chat layout rendering history and latest answer with page citations.
-2. Upload widget to load a new PDF and trigger ingestion.
-3. Session memory for chat; optional simple local persistence for history.
-4. Settings panel: switch model.
-5. Cache stable resources (Chroma client, embeddings config).
+1. [x] Chat layout rendering history and latest answer with page citations.
+2. [x] Upload widget to load a new PDF and trigger ingestion.
+3. [x] Session memory for chat; optional simple local persistence for history.
+4. [x] Settings panel: switch model.
+5. [x] Cache stable resources (Chroma client, embeddings config).
 
 ---
 
@@ -146,14 +146,14 @@ Goal: build a local proof of concept negotiation coach chat application that use
 
 ## QA CHECKLIST
 
-- [ ] All user instructions followed
-- [ ] All requirements implemented and tested
+- [x] All user instructions followed
+- [x] All requirements implemented and tested
 - [ ] No critical code smell warnings
-- [ ] Code follows project conventions and standards
+- [x] Code follows project conventions and standards
 - [ ] Documentation is updated and accurate if needed
 - [ ] Security considerations addressed
-- [ ] Performance requirements met
-- [ ] Integration points verified
+- [x] Performance requirements met
+- [x] Integration points verified
 - [ ] Deployment readiness confirmed
 
 ---

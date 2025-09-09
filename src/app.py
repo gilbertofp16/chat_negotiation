@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import asyncio
 import tempfile
+import nest_asyncio
 from dotenv import load_dotenv
 
 # Use the MCP-enabled RAG pipeline and direct ingestion
@@ -9,6 +10,9 @@ from src.langchain.rag_pipeline_with_mcp import get_answer
 from src.retriever.get_retriever import get_chroma_retriever
 from src.ingestion import ingest_pdf
 from src.config import REASONING_MODEL_NAME
+
+# Apply the patch for nested asyncio
+nest_asyncio.apply()
 
 # Load environment variables
 load_dotenv()
