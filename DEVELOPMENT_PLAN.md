@@ -87,20 +87,19 @@ Goal: build a local proof of concept negotiation coach chat application that use
 
 ---
 
-## Requirement 7. Tiny MCP browse tool (Black Swan sanity checks)
+## Requirement 6. Tiny MCP browse tool (Black Swan sanity checks)
 
 **Tasks**
 1.  [x] Implement a **minimal MCP server** over stdio with a single action: `browse_bsw(topic)` that constrains queries to the Black Swan negotiation domain.
 2.  [x] Create a LangChain `Tool` wrapper around the MCP client to make it available to agents.
 3.  [x] Integrate the tool into the LangChain agent executor, allowing the LLM to decide when to call it.
 4.  [x] Update the LangChain system prompt to instruct the agent on the proper, secondary use of the tool.
-5.  [ ] Join the Langfuse logs for the retriever and the agent execution into a single, unified trace.
-6.  [ ] Add more structure to the reasoning logs to detail how the LLM uses information from different sources (retriever, browser, internal knowledge).
-7.  [ ] UI: show when browse was used and list 1–2 sources. (Pending UI implementation)
+5.  [x] Join the Langfuse logs for the retriever and the agent execution into a single, unified trace.
+
 
 ---
 
-## Requirement 8. Streamlit chat UI with memory and caching
+## Requirement 7. Streamlit chat UI with memory and caching
 
 **Tasks**
 1. Chat layout rendering history and latest answer with page citations.
@@ -111,7 +110,7 @@ Goal: build a local proof of concept negotiation coach chat application that use
 
 ---
 
-## Requirement 9. Observability with Langfuse
+## Requirement 8. Observability with Langfuse
 
 **Tasks**
 1. Initialize Langfuse early and verify connection.
@@ -121,13 +120,41 @@ Goal: build a local proof of concept negotiation coach chat application that use
 
 ---
 
-## Requirement 10. Deployment and operations (Local only)
+## Requirement 9. Deployment and operations (Local only)
 
 **Tasks**
 1. **Local POC only**: run via Poetry or Docker.
 2. Provide `docker compose` or Make targets for one-command bring-up.
 3. Confirm Chroma persistence under a mounted local volume.
 4. Document local health checks and restart steps.
+
+---
+
+## Requirement 10. Unit Testing
+
+**Tasks**
+1.  Implement unit tests for all major components.
+2.  Ensure test coverage for `src/prompt_loader.py`.
+3.  Ensure test coverage for `src/observability.py`.
+4.  Ensure test coverage for `src/retriever/get_retriever.py`.
+5.  Ensure test coverage for `utils/load_config.py`.
+6.  Exclude `crewai` components from unit testing as per requirements.
+7.  Integrate a test runner (e.g., pytest) into the project.
+8.  Add a `test` script to `pyproject.toml` or `Makefile`.
+
+---
+
+## QA CHECKLIST
+
+- [ ] All user instructions followed
+- [ ] All requirements implemented and tested
+- [ ] No critical code smell warnings
+- [ ] Code follows project conventions and standards
+- [ ] Documentation is updated and accurate if needed
+- [ ] Security considerations addressed
+- [ ] Performance requirements met
+- [ ] Integration points verified
+- [ ] Deployment readiness confirmed
 
 ---
 
